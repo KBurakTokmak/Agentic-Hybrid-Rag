@@ -25,7 +25,7 @@ def create_chunks():
     docs = load_and_clean_pdfs(folder_path)
 
     # Initialize a text splitter to divide the documents into chunks
-    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=0)
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=2024, chunk_overlap=50)
 
     # Split the documents into manageable text chunks
     text_splits = text_splitter.split_documents(docs)
