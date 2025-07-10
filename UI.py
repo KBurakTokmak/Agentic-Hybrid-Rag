@@ -19,7 +19,6 @@ from langchain_ollama import OllamaLLM
 from langchain.schema import HumanMessage
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import FAISS
-from langchain.schema import Document
 from Functions.tool import tool
 from Functions.tool_agent import ToolAgent
 from langchain.retrievers import EnsembleRetriever
