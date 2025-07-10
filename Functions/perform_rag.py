@@ -5,13 +5,14 @@ import pickle
 from Functions.functions import cypher_search, similarity_search
 from Functions.tool import tool
 from Functions.tool_agent import ToolAgent
-from langchain_ollama import OllamaEmbeddings, OllamaLLM
+from langchain_ollama import OllamaLLM
 from langchain_community.vectorstores import Neo4jVector
 from langchain.retrievers import EnsembleRetriever
 from langchain.retrievers import ContextualCompressionRetriever
 from langchain_cohere import CohereRerank
 from langchain_community.retrievers import BM25Retriever
 from langchain_community.vectorstores import FAISS
+from langchain.embeddings import SentenceTransformerEmbeddings
 
 
 def agent_rag():
@@ -57,7 +58,7 @@ def baseline_RAG(question):
     keyword_retriever.k = 5  # Retrieve top 5 most relevant documents
 
     # Initialize embedding model for vector similarity search
-    embedding = OllamaEmbeddings(model="mistral")
+    embedding = SentenceTransformerEmbeddings(model_name="all-MiniLM-L6-v2")
 
     # Load the FAISS vector index from local storage
     vectorstore = FAISS.load_local("Database/faiss_index", embedding, allow_dangerous_deserialization=True)
