@@ -4,7 +4,7 @@ import pickle
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import FAISS
 from langchain.embeddings import SentenceTransformerEmbeddings
-from Functions.auxiliary import is_reference_chunk, clean_pdf_text, load_and_clean_pdfs
+from Functions.auxiliary import is_reference_chunk, load_and_clean_pdfs
 
 
 def create_chunks():
