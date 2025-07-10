@@ -8,11 +8,11 @@ import numpy as np
 import nltk
 from scipy import stats
 
-from langchain_ollama import OllamaEmbeddings, OllamaLLM
 from langchain_neo4j import Neo4jGraph
 from Functions.perform_rag import baseline_RAG
 from sklearn.metrics.pairwise import cosine_similarity
-from langchain_ollama import OllamaLLM, OllamaEmbeddings
+from langchain_ollama import OllamaLLM
+from langchain.embeddings import SentenceTransformerEmbeddings
 
 
 nltk.download('punkt', quiet=True)
@@ -643,7 +643,7 @@ def get_embedding(texts):
         texts = [texts]
     if not texts:
         return []
-    embedding = OllamaEmbeddings(model="mistral")
+    embedding = SentenceTransformerEmbeddings(model_name="all-MiniLM-L6-v2")
     return embedding.embed_documents(texts)
 
 
