@@ -3,10 +3,12 @@ import re
 import nltk
 import spacy
 import os
+import fitz
 
 from sklearn.feature_extraction.text import TfidfVectorizer
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
+from langchain.schema import Document
 
 
 # Download necessary resources
@@ -497,7 +499,6 @@ def load_and_clean_pdfs(pdf_folder_path: str):
     Returns:
         List[Document]: A list of cleaned Document objects with metadata.
     """
-    import os
 
     documents = []
 
