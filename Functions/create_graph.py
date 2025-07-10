@@ -3,8 +3,7 @@ import ast
 import os
 
 from py2neo import Graph, Node, Relationship
-from langchain_ollama import OllamaEmbeddings
-
+from langchain.embeddings import SentenceTransformerEmbeddings
 
 def create_knowledge_graph(papers):
     """
@@ -24,7 +23,7 @@ def create_knowledge_graph(papers):
     - None (modifies the Neo4j database).
     """
 
-    embedding_model = OllamaEmbeddings(model="mistral")
+    embedding_model = SentenceTransformerEmbeddings(model_name="all-MiniLM-L6-v2")
 
     # Extract unique values, ensuring no empty nodes are created
     years = [str(y).strip() for y in papers["Year"].unique() if pd.notna(y)]
