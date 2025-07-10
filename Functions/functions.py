@@ -2,7 +2,7 @@ import json
 import pickle
 import os
 
-from langchain_ollama import OllamaEmbeddings, OllamaLLM
+from langchain_ollama import OllamaLLM
 from langchain_neo4j import Neo4jGraph
 from langchain.prompts import ChatPromptTemplate
 from langchain_community.retrievers import BM25Retriever
@@ -10,6 +10,7 @@ from langchain_community.vectorstores import FAISS
 from langchain.retrievers import EnsembleRetriever
 from langchain.retrievers import ContextualCompressionRetriever
 from langchain_cohere import CohereRerank
+from langchain.embeddings import SentenceTransformerEmbeddings
 
 
 def cypher_search(question: str):
@@ -225,7 +226,7 @@ def similarity_search(question: str):
     keyword_retriever.k = 5  # Retrieve top 5 most relevant documents
 
     # Initialize embedding model for vector similarity search
-    embedding = OllamaEmbeddings(model="mistral")
+    embedding = SentenceTransformerEmbeddings(model_name="all-MiniLM-L6-v2")
 
     # Load the FAISS vector index from local storage
     vectorstore = FAISS.load_local("Database/faiss_index", embedding, allow_dangerous_deserialization=True)
