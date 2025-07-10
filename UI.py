@@ -15,9 +15,8 @@ from pathlib import Path
 from Functions.search_papers import search_papers
 from Functions.select_papers import select_papers
 from Functions.download_papers import download_pubmed, download_arxiv_googleScholar
-from langchain_ollama import OllamaLLM, OllamaEmbeddings
+from langchain_ollama import OllamaLLM
 from langchain.schema import HumanMessage
-from langchain_community.document_loaders import PDFPlumberLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import FAISS
 from langchain.schema import Document
@@ -29,8 +28,9 @@ from langchain_cohere import CohereRerank
 from langchain_community.retrievers import BM25Retriever
 from langchain_neo4j import Neo4jGraph
 from langchain.prompts import ChatPromptTemplate
-from Functions.auxiliary import sanitize_filename
+from Functions.auxiliary import sanitize_filename, load_and_clean_pdfs, is_reference_chunk
 from metapub import FindIt
+from langchain.embeddings import SentenceTransformerEmbeddings
 
 
 # ---------------------------------------
@@ -77,7 +77,7 @@ if "neo_uri" not in st.session_state:
 
 @st.cache_resource
 def load_embedding_model():
-    return OllamaEmbeddings(model="llama3")
+    return SentenceTransformerEmbeddings(model_name="all-MiniLM-L6-v2")
 
 
 @st.cache_resource
@@ -306,25 +306,22 @@ def create_chunks_st(tempfolder_path):
             continue
 
         try:
-            loader = PDFPlumberLoader(file_path)
-            loaded_docs = loader.load()
-            for doc in loaded_docs:
-                page = doc.metadata.get('page', '')
-                source = doc.metadata.get("source", "")
-                page_content = doc.page_content
-                docs.append(Document(page_content=page_content, metadata={"source": f"{source} (page {page})"}))
+            docs = load_and_clean_pdfs(folder_path)
         except Exception as e:
-            print(f"Error loading {fn}: {e}")
+            print(f"Error loading: {e}")
 
     if not docs:
         raise ValueError("No valid PDFs found or none could be loaded.")
 
-    text_splitter = RecursiveCharacterTextSplitter(chunk_size=2024, chunk_overlap=0)
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=2024, chunk_overlap=50)
     text_splits = text_splitter.split_documents(docs)
+
+    # Keep only the non-reference chunks
+    text_splits = [chunk for chunk in text_splits if not is_reference_chunk(chunk.page_content)]
 
     print("text_splits was created with success!")
 
-    embedding = OllamaEmbeddings(model="llama3")
+    embedding = SentenceTransformerEmbeddings(model_name="all-MiniLM-L6-v2")
     index = FAISS.from_documents(text_splits, embedding=embedding)
 
     print("vector store was created with success!")
