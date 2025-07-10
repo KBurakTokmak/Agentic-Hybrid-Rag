@@ -383,3 +383,149 @@ def format_author_googlescholar(authors):
 
     # return formatted_authors
     return formatted_authors
+
+
+def is_reference_chunk(text, citation_threshold=0.02):
+    """
+    Determines whether a given text chunk is likely to be part of a references or bibliography section.
+
+    Functionality:
+    This function uses heuristic rules to identify text segments that resemble reference entries 
+    by checking for:
+    - The frequency of citation markers (e.g., [1], [23])
+    - Presence of reference-related keywords (e.g., 'arXiv', 'doi')
+    - A high ratio of numbers to words
+
+    Args:
+        text (str): The text chunk to evaluate.
+        citation_threshold (float): The minimum ratio of citation markers to words 
+                                    required to consider the text as a reference.
+
+    Returns:
+        bool: True if the chunk is likely a reference entry, False otherwise.
+    """
+    # Count occurrences of citation patterns like [1], [23]
+    citations = re.findall(r'\[\d+\]', text)
+    citation_count = len(citations)
+
+    # Define common keywords found in reference entries
+    keywords = ['arXiv', 'doi', 'conference', 'proceedings', 'journal', 'pages', 'et al', 'preprint']
+    text_lower = text.lower()
+
+    # Extract words and numbers from text
+    words = re.findall(r'\b[a-zA-Z]+\b', text)
+    numbers = re.findall(r'\b\d+(\.\d+)?\b', text)  # Includes integers and decimals
+
+    word_count = len(words)
+    number_count = len(numbers)
+
+    # Count how many reference-related keywords are present
+    count = sum(1 for keyword in keywords if keyword.lower() in text_lower)
+
+    # Count total words using simple whitespace split
+    total_words = len(text.split())
+
+    # Calculate the ratio of citation markers to total words
+    citation_ratio = citation_count / (total_words + 1e-5)  # Add small value to avoid division by zero
+
+    # Heuristic 1: If citation density is above threshold and has at least one reference keyword
+    if (citation_ratio > citation_threshold) and count >= 1:
+        return True
+
+    # Heuristic 2: If numbers outnumber words (e.g., numerical-heavy reference entries)
+    if number_count >= word_count:
+        return True
+
+    # Otherwise, unlikely to be a reference entry
+    return False
+
+
+def clean_pdf_text(text: str) -> str:
+    """
+    Cleans and corrects common formatting issues in raw scientific PDF text.
+
+    Functionality:
+    - Removes hyphenation at line breaks (e.g., "multi-\nnational" → "multinational");
+    - Inserts spaces between glued words (e.g., "andBryan" → "and Bryan");
+    - Fixes missing spaces after commas and periods;
+    - Removes non-printable ASCII characters (excluding newline and tab);
+    - Normalizes multiple spaces into a single space.
+
+    Args:
+        text (str): Raw text extracted from a PDF.
+
+    Returns:
+        str: Cleaned and formatted text.
+    """
+    # Remove hyphen followed by a newline (broken words across lines)
+    text = re.sub(r'(\w+)-\n(\w+)', r'\1\2', text)
+
+    # Add space between a lowercase letter followed by an uppercase letter (e.g., "wordNext" → "word Next")
+    text = re.sub(r'(?<=[a-z])(?=[A-Z])', ' ', text)
+
+    # Ensure a space follows any comma that doesn't already have one
+    text = re.sub(r',(?=\S)', ', ', text)
+
+    # Ensure a space follows any period if it's directly followed by a capital letter (e.g., "e.g.Next" → "e.g. Next")
+    text = re.sub(r'(?<=[a-z])\.(?=[A-Z])', '. ', text)
+
+    # Replace multiple whitespace characters with a single space
+    text = re.sub(r'\s+', ' ', text)
+
+    # Remove non-printable ASCII characters (excluding newline and tab)
+    text = re.sub(r'[^\x20-\x7E\n\t]', '', text)
+
+    # Strip leading and trailing whitespace
+    return text.strip()
+
+
+def load_and_clean_pdfs(pdf_folder_path: str):
+    """
+    Loads all PDF files from a specified folder, extracts and cleans the text,
+    and returns a list of Document objects, each containing metadata about
+    the source file and page number.
+
+    Functionality:
+    - Iterates through all PDF files in the given folder;
+    - Extracts raw text from each page using PyMuPDF (`fitz`);
+    - Cleans the extracted text using the `clean_pdf_text` function;
+    - Stores each page's content and metadata (filename and page number) in a Document object.
+
+    Args:
+        pdf_folder_path (str): Path to the folder containing PDF files.
+
+    Returns:
+        List[Document]: A list of cleaned Document objects with metadata.
+    """
+    import os
+
+    documents = []
+
+    for filename in os.listdir(pdf_folder_path):
+        # Skip non-PDF files
+        if not filename.lower().endswith('.pdf'):
+            continue
+
+        filepath = os.path.join(pdf_folder_path, filename)
+        pdf = fitz.open(filepath)
+
+        for page_num, page in enumerate(pdf, start=1):
+            # Extract raw text from the current page
+            raw_text = page.get_text()
+
+            # Clean the extracted text
+            clean_text = clean_pdf_text(raw_text)
+
+            # Prepare metadata with filename and page number
+            metadata = {
+                "source": filename,
+                "page": page_num
+            }
+
+            # Create a Document object with the cleaned text and metadata
+            doc = Document(page_content=clean_text, metadata=metadata)
+            documents.append(doc)
+
+        pdf.close()
+
+    return documents
