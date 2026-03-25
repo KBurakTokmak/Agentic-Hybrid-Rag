@@ -27,7 +27,7 @@ from langchain_cohere import CohereRerank
 from langchain_community.retrievers import BM25Retriever
 from langchain_neo4j import Neo4jGraph
 from langchain.prompts import ChatPromptTemplate
-from Functions.auxiliary import sanitize_filename, load_and_clean_pdfs, is_reference_chunk
+from Functions.auxiliary import sanitize_filename, clean_pdf_text, is_reference_chunk
 from metapub import FindIt
 from langchain.embeddings import SentenceTransformerEmbeddings
 
@@ -292,22 +292,37 @@ def is_valid_pdf(filepath: str) -> bool:
 def create_chunks_st(tempfolder_path):
     """Loads all valid PDF files from a folder, splits text, creates embeddings and a FAISS index."""
 
-    docs = []
-
+    valid_pdfs = []
     for fn in os.listdir(tempfolder_path):
         if not fn.lower().endswith(".pdf"):
             continue
-
         file_path = os.path.join(tempfolder_path, fn)
-
-        if not is_valid_pdf(file_path):
+        if is_valid_pdf(file_path):
+            valid_pdfs.append(fn)
+        else:
             print(f"Skipping invalid PDF: {fn}")
+
+    if not valid_pdfs:
+        raise ValueError("No valid PDFs found or none could be loaded.")
+
+    from langchain.schema import Document
+    import fitz
+
+    docs = []
+    for fn in valid_pdfs:
+        file_path = os.path.join(tempfolder_path, fn)
+        try:
+            pdf = fitz.open(file_path)
+        except Exception as e:
+            print(f"Skipping unreadable PDF: {fn} ({e})")
             continue
 
-        try:
-            docs = load_and_clean_pdfs(folder_path)
-        except Exception as e:
-            print(f"Error loading: {e}")
+        for page_num, page in enumerate(pdf, start=1):
+            raw_text = page.get_text()
+            clean_text = clean_pdf_text(raw_text)
+            docs.append(Document(page_content=clean_text, metadata={"source": fn, "page": page_num}))
+
+        pdf.close()
 
     if not docs:
         raise ValueError("No valid PDFs found or none could be loaded.")
@@ -681,29 +696,46 @@ def display_pdf_from_temp(filename: str):
 
 def perform_search():
     with st.spinner("Searching papers..."):
+        st.session_state.auth_success = False
+        st.session_state.index = None
+        st.session_state.splits = None
+
         # Search papers
         papers = search_papers(query, max_results, y_min, y_max)
         if papers.empty:
             st.error("The search retrieved no results")
-            st.session_state.results_df = None
+            st.session_state.results_df = pd.DataFrame()
+            st.session_state.tempdir = None
+            st.session_state.tempdirname = None
             return
         else:
             # Filter papers
             papers = select_papers(papers, query)
             if papers.empty:
                 st.error("The search retrieved no results")
-                st.session_state.results_df = None
+                st.session_state.results_df = pd.DataFrame()
+                st.session_state.tempdir = None
+                st.session_state.tempdirname = None
                 return
             else:
                 # Download PDFs to temporary directory
                 tempdir, temp_name = download_papers_tempdir(papers)
+                if not tempdir or not temp_name:
+                    st.error("No PDFs could be downloaded for the retrieved papers. Try a different query or reduce max results.")
+                    st.session_state.results_df = pd.DataFrame()
+                    st.session_state.tempdir = None
+                    st.session_state.tempdirname = None
+                    return
+
                 print(temp_name)
                 path = Path(temp_name)
                 p = len(list(path.glob('*.pdf')))
                 print(list(path.glob('*.pdf')))
-                if tempdir is None or p == 0:
-                    st.error("The search retrieved no results")
-                    st.session_state.results_df = None
+                if p == 0:
+                    st.error("No PDFs could be downloaded for the retrieved papers. Try a different query or reduce max results.")
+                    st.session_state.results_df = pd.DataFrame()
+                    st.session_state.tempdir = None
+                    st.session_state.tempdirname = None
                     return
                 papers["sanitizedTitle"] = papers["Title"].apply(sanitize_filename)
                 st.session_state.results_df = papers
@@ -757,11 +789,19 @@ with st.sidebar:
                         create_knowledge_graph_st(st.session_state.results_df, st.session_state.neo_uri, st.session_state.neo_username, st.session_state.neo_password)
 
                         # Create vector space
-                        splits, index = create_chunks_st(st.session_state.tempdirname)
+                        try:
+                            splits, index = create_chunks_st(st.session_state.tempdirname)
+                        except Exception as e:
+                            st.error(str(e))
+                            st.session_state.index = None
+                            st.session_state.splits = None
+                            st.session_state.auth_success = False
+                            st.stop()
 
                         # Save results in cache
                         st.session_state.index = index
                         st.session_state.splits = splits
+                        st.session_state.auth_success = True
 
                         st.success("All set! You may now chat with your personalized agent")
                         st.rerun()
@@ -828,11 +868,25 @@ if prompt := st.chat_input("Ask something!"):
 
             llm = OllamaLLM(model="mistral")
 
+            sidebar_state = {
+                "has_query": bool(query),
+                "has_range": bool(y_min_max),
+                "max_results": max_results,
+                "has_results": isinstance(st.session_state.results_df, pd.DataFrame) and not st.session_state.results_df.empty,
+                "has_pdfs": bool(st.session_state.tempdir) and bool(st.session_state.tempdirname) and len(list(Path(st.session_state.tempdirname).glob("*.pdf"))) > 0 if st.session_state.tempdirname else False,
+            }
+
+            if sidebar_state["has_results"] and sidebar_state["has_pdfs"]:
+                guidance = "You already have search results. Click 'Start agent' in the sidebar to build the knowledge graph and vector index, then ask your question again."
+            elif sidebar_state["has_query"] and sidebar_state["has_range"] and sidebar_state["max_results"]:
+                guidance = "Run a search from the sidebar first. If it finds papers but no PDFs can be downloaded (common with Google Scholar 403s), try a different query, reduce max results, or focus on arXiv/open-access sources."
+            else:
+                guidance = "Fill in the sidebar fields (search query, date range, max results) and click 'Search'."
+
             combined_prompt = (
-                "You are an assistant that appears before the user has entered the required information for the full literature search agent to activate."
-                "Your job is to politely inform the user that they need to complete the sidebar fields (search query, date range, max results) before continuing."
-                "Be brief, friendly, and supportive. Do not attempt to answer any literature-related questions, generate summaries, or engage in advanced reasoning. Simply prompt the user to fill in the required information."
-                "If the user tries to ask a research-related question, kindly redirect them to the sidebar and let them know you'll be a more capable assistant once they complete that step.\n\n"
+                "You are an assistant that appears before the full literature search agent is activated."
+                "Be brief, friendly, and supportive. Do not attempt to answer literature questions yet. Provide only next-step guidance.\n\n"
+                f"Guidance: {guidance}\n\n"
                 f"History: {st.session_state.messages}\n"
                 f"User question: {prompt}"
             )

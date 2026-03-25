@@ -1,0 +1,52 @@
+services:
+  neo4j:
+    image: neo4j:5-community
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    environment:
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD}
+    volumes:
+      - neo4j_data:/data
+
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama:/root/.ollama
+    gpus:
+      - driver: nvidia
+        count: all
+        capabilities: ["gpu"]
+
+  app:
+    build:
+      context: .
+    depends_on:
+      - neo4j
+      - ollama
+    ports:
+      - "5000:5000"
+    env_file:
+      - .env
+    environment:
+      KG_URI: bolt://neo4j:7687
+      KG_USERNAME: neo4j
+      KG_PASSWORD: ${NEO4J_PASSWORD}
+      OLLAMA_HOST: http://ollama:11434
+    volumes:
+      - ./:/Agentic-Hybrid-Rag
+      - hf_cache:/root/.cache/huggingface
+      - st_cache:/root/.cache/torch
+    gpus:
+      - driver: nvidia
+        count: all
+        capabilities: ["gpu"]
+    command: ["python", "-m", "streamlit", "run", "UI.py", "--server.port", "5000", "--server.address", "0.0.0.0"]
+
+volumes:
+  neo4j_data:
+  ollama:
+  hf_cache:
+  st_cache:
