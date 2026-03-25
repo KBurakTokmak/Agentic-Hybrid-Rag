@@ -34,6 +34,10 @@ No rebuild needed for code edits (repo is bind-mounted). Restart the app if Stre
 ```powershell
 docker compose restart app
 ```
+## 6) Important Notes
+
+- Remove the `gpus` section from ollama in `docker-compose.yml` if you are not using a GPU and have CUDA installed. Model will run on CPU.
+
 ## Example Run
 
 - Open the UI: at `http://localhost:5000` and search `Machine learning model improvement` with date range `2000-2026` and max 6 results per database.
