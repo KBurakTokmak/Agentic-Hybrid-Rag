@@ -1,6 +1,11 @@
 # Fast Run (Docker Compose)
 
-## 1) Edit `.env`
+## 1) Important Notes
+- Docker engine needs to be installed and running.
+- Remove the `gpus` section from `ollama` and `app` in `docker-compose.yml` if you are not using a GPU and have CUDA installed. Model will run on CPU.
+- Might or might not work with Linux.
+
+## 2) Edit `.env`
 
 Set these values:
 
@@ -8,7 +13,7 @@ Set these values:
 - `COHERE_API_KEY` = Cohere API key (create at https://dashboard.cohere.com/api-keys)
 - `GROQ_API_KEY` = Groq API key (create at https://console.groq.com/keys)
 
-## 2) Build and start
+## 3) Build and start
 
 From the repo root:
 
@@ -16,28 +21,24 @@ From the repo root:
 docker compose up -d --build
 ```
 
-## 3) Pull the Ollama model (first run only)
+## 4) Pull the Ollama model (first run only)
 
 ```powershell
 docker compose exec -T ollama ollama pull mistral
 ```
 
-## 4) Open the UI / Neo4j
+## 5) Open the UI / Neo4j
 
 - UI: http://localhost:5000
 - Neo4j Browser: http://localhost:7474 (user: `neo4j`, password: `NEO4J_PASSWORD`)
 
-## 5) Dev loop (code-only changes)
+## 6) Dev loop (code-only changes)
 
 No rebuild needed for code edits (repo is bind-mounted). Restart the app if Streamlit doesn’t auto-reload:
 
 ```powershell
 docker compose restart app
 ```
-## 6) Important Notes
-- Docker engine needs to be installed and running.
-- Remove the `gpus` section from `ollama` and `app` in `docker-compose.yml` if you are not using a GPU and have CUDA installed. Model will run on CPU.
-- Might or might not work with Linux.
 
 ## Example Run
 
