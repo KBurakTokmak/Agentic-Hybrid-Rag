@@ -35,8 +35,9 @@ No rebuild needed for code edits (repo is bind-mounted). Restart the app if Stre
 docker compose restart app
 ```
 ## 6) Important Notes
-
+- Docker engine needs to be installed and running.
 - Remove the `gpus` section from ollama in `docker-compose.yml` if you are not using a GPU and have CUDA installed. Model will run on CPU.
+- Might or might not work with Linux.
 
 ## Example Run
 
